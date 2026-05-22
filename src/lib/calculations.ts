@@ -1,5 +1,12 @@
 import type { CalculationResult, CalculatorConfig, Tolerances } from '../types';
 
+export const getMaterialDensity = (material: string) => {
+  if (material.includes('Titanium')) return 4.51;
+  if (material.includes('Duplex')) return 7.8;
+  if (material.includes('Stainless')) return 7.9;
+  return 7.85;
+};
+
 export const getTolerances = (diameterOuter: number): Tolerances => {
   let daTol = 0;
   if (diameterOuter <= 500) daTol = 2;
@@ -46,7 +53,7 @@ export const calculateGeometry = (config: CalculatorConfig): CalculationResult =
   const blankDiameter = blankDiameterFactor * diameter + 2 * straightFlange;
   const surfaceAreaMm2 = Math.PI * (blankDiameter / 2) ** 2;
   const volumeMm3 = surfaceAreaMm2 * thickness;
-  const density = config.material.includes('Stainless') ? 7.9 : 7.85;
+  const density = getMaterialDensity(config.material);
   const weight = (volumeMm3 / 1_000_000) * density;
 
   return {

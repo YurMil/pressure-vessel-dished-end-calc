@@ -20,7 +20,9 @@ The application lets the user:
 - add and position nozzles on the head sketch
 - preview the head profile in SVG
 - review derived manufacturing values
+- estimate the circular blank, minimum square sheet, and forming thickness map
 - generate a print-friendly QC / manufacturing report
+- generate a print-friendly blank cutting report
 
 The goal of this refactor is to preserve the behavior of the original calculator while making the code easier to extend, validate, test, and deploy.
 
@@ -86,11 +88,35 @@ When inputs are valid, the application computes and displays:
 - dish depth `h2`
 - total height `H`
 - estimated blank diameter
+- required circular blank diameter
+- minimum and recommended square sheet size
+- estimated forming thickness by zone
 - estimated weight
 - approximate volume
 - tolerance values
 
-### 6. Generate the report
+### 6. Review blank and forming estimate
+
+The `Blank & Forming Assumptions` panel controls the production-planning estimate for the blank.
+
+The module uses:
+
+- radial trim allowance, with an automatic default of `max(10 mm, 0.005 * Da)`
+- cutting clearance per side
+- rounding step for sheet and disc sizes
+
+The live blank module shows:
+
+- required circular blank diameter
+- minimum square sheet size
+- recommended square sheet size
+- estimated square-sheet waste
+- estimated minimum thickness zone
+- advisory starting thickness if the target is to retain nominal thickness after forming
+
+The thickness map is an engineering v1 estimate only. It is intended for planning and supplier discussion, not for certified forming simulation or pressure-vessel code verification.
+
+### 7. Generate reports
 
 The `QC Report (PDF)` button opens a print-oriented report view and automatically triggers the browser print dialog when possible.
 
@@ -102,6 +128,8 @@ The report includes:
 - QC measurement table
 - tolerance references
 - signature placeholders
+
+The `Blank Report (PDF)` button opens a separate print-oriented blank report with blank sizing assumptions, a circular blank and square sheet table, a cutting map, an estimated thickness map, warnings, and signature placeholders.
 
 ## Validation Behavior
 
@@ -116,12 +144,16 @@ Validation currently checks:
 - bevel angle must be between `0` and `90` degrees when bevel mode is enabled
 - root face must be greater than zero and smaller than thickness
 - nozzle offsets must stay within the available visual span of the head
+- blank trim allowance and cutting clearance must be zero or greater
+- blank rounding step must be greater than zero
 
 When a value is invalid:
 
 - the validation panel shows the problem
 - the engineering preview is paused
 - report generation is disabled
+
+Invalid blank assumptions pause only the blank module and blank report. The main engineering preview and QC report remain available when the head geometry and nozzle inputs are valid.
 
 ## Engineering Logic
 
@@ -161,14 +193,33 @@ The application also computes:
 - estimated weight using simple density rules
 - approximate vessel volume using the legacy simplified method
 
+### Blank sizing and thickness estimate
+
+The blank module keeps the legacy `blankDiameter` as the base flat blank diameter, then applies manufacturing allowances:
+
+```text
+requiredDiscDiameter = roundUp(baseBlankDiameter + 2 * trimAllowanceRadial, roundingStep)
+minimumSquareSheetSide = requiredDiscDiameter
+recommendedSquareSheetSide = roundUp(requiredDiscDiameter + 2 * cuttingClearance, roundingStep)
+```
+
+The v1 thickness estimate treats the entered `s` as starting sheet thickness and applies default forming reductions by zone:
+
+- `DIN28011` / `SS895`: crown `-3%`, crown shoulder `-7%`, knuckle `-12%`, straight flange `-4%`
+- `DIN28013`: crown `-4%`, crown shoulder `-8%`, knuckle `-14%`, straight flange `-5%`
+
+If the estimated minimum thickness drops below the QC minimum `s - 0.3 mm`, the app shows a warning in the module and blank report.
+
 ### Material density assumption
 
 Weight estimation currently uses:
 
+- `4.51` for materials whose name contains `Titanium`
+- `7.8` for materials whose name contains `Duplex`
 - `7.9` for materials whose name contains `Stainless`
-- `7.85` for all other materials
+- `7.85` for all other supported pressure-vessel steels
 
-This is intentionally simple because it reflects the original calculator behavior.
+This is still a simplified material density model and should be checked against project-specific material certificates for released manufacturing data.
 
 ## Project Structure
 
@@ -193,12 +244,15 @@ pressure-vessel-dished-end-calc/
     ├── constants.ts
     ├── types.ts
     ├── components/
+    │   ├── BlankModulePanel.tsx
+    │   ├── BlankReportView.tsx
     │   ├── Field.tsx
     │   ├── Icon.tsx
     │   ├── PreviewPanel.tsx
     │   ├── ReportView.tsx
     │   └── SvgDimension.tsx
     └── lib/
+        ├── blankCalculations.ts
         ├── calculations.ts
         ├── drawing.ts
         └── validation.ts
@@ -225,11 +279,13 @@ The main application container.
 Primary responsibilities:
 
 - stores form state
+- stores blank assumption state
 - stores nozzle list state
 - runs validation through `validateForm`
 - runs calculations through `calculateGeometry`
+- runs blank sizing through `calculateBlank`
 - computes approximate volume
-- toggles the report view
+- toggles the QC and blank report views
 - triggers browser printing
 - composes the user interface panels
 
@@ -243,6 +299,7 @@ Contains:
 - supported material list
 - supported nozzle sizes
 - default calculator form values
+- default blank assumption form values
 - default nozzle values
 
 ### `src/types.ts`
@@ -252,6 +309,7 @@ Central TypeScript contracts for the application.
 Defines:
 
 - calculator form types
+- blank option and blank calculation result types
 - parsed calculator config type
 - nozzle types
 - calculation result type
@@ -273,6 +331,21 @@ Main functions:
 - `calculateApproxVolume(config, totalHeight)`
   Returns the legacy approximate volume estimate shown in the UI.
 
+### `src/lib/blankCalculations.ts`
+
+The blank sizing and forming estimate module.
+
+Main functions:
+
+- `getDefaultTrimAllowance(diameterOuter)`
+  Returns the automatic radial trim allowance.
+
+- `roundUpToStep(value, step)`
+  Rounds manufacturing dimensions upward to the configured increment.
+
+- `calculateBlank(config, calculated, options)`
+  Calculates circular blank size, square sheet size, waste, blank weights, estimated thickness zones, advisory starting thickness, and warnings.
+
 ### `src/lib/validation.ts`
 
 The input validation and parsing layer.
@@ -285,6 +358,7 @@ Responsibilities:
 
 - parses user-entered strings into numbers
 - checks engineering constraints
+- validates blank module assumptions
 - validates nozzle offsets
 - creates a safe parsed config object
 - returns structured errors for the UI
@@ -341,6 +415,17 @@ Responsibilities:
 - renders dimension annotations
 - shows quick numeric summary cards
 
+### `src/components/BlankModulePanel.tsx`
+
+The live blank and thickness module.
+
+Responsibilities:
+
+- renders the cutting map
+- renders the estimated thickness map
+- shows blank sizing, waste, weight, and minimum thickness metrics
+- shows warning messages for planning risk
+
 ### `src/components/ReportView.tsx`
 
 The printable manufacturing / QC report view.
@@ -352,6 +437,17 @@ Responsibilities:
 - renders design and dimension tables
 - renders the black-and-white report sketch
 - renders the QC tolerance table
+- provides print and close actions
+
+### `src/components/BlankReportView.tsx`
+
+The printable blank report view.
+
+Responsibilities:
+
+- renders blank sizing assumptions and output
+- renders print-friendly cutting and thickness maps
+- renders thickness zone and warning tables
 - provides print and close actions
 
 ### `src/styles.css`
@@ -374,7 +470,8 @@ The application runtime is intentionally straightforward:
 3. If validation succeeds, parsed config is passed to `calculateGeometry`
 4. Drawing helpers prepare SVG geometry and nozzle placement
 5. `PreviewPanel` renders the live engineering preview
-6. `ReportView` renders the print-ready document when opened
+6. `BlankModulePanel` renders blank sizing and thickness estimates when blank assumptions are valid
+7. `ReportView` or `BlankReportView` renders the selected print-ready document when opened
 
 ## Local Development
 
@@ -453,6 +550,8 @@ static/utility-apps/pressure-vessel-dished-end-calc
 ## Known Limitations
 
 - Weight and volume calculations are simplified and intended for quick estimation, not code-level design verification.
+- Blank sizing and forming thickness maps are engineering v1 estimates and must be confirmed with the forming supplier before manufacturing release.
+- Nozzle cutouts do not reduce blank size or waste in the v1 blank module.
 - Nozzle handling is visual and positional only; it does not perform reinforcement or stress calculations.
 - Material density handling is simplified.
 - The report is print-oriented rather than a full document export engine.

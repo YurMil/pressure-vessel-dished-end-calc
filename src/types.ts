@@ -29,6 +29,18 @@ export interface NozzleForm {
   offset: string;
 }
 
+export interface BlankOptionsForm {
+  trimAllowanceRadial: string;
+  cuttingClearance: string;
+  roundingStep: string;
+}
+
+export interface BlankOptions {
+  trimAllowanceRadial: number;
+  cuttingClearance: number;
+  roundingStep: number;
+}
+
 export interface Tolerances {
   daPlus: number;
   daMinus: number;
@@ -54,10 +66,42 @@ export interface ParsedNozzle {
   offset: number;
 }
 
+export interface ThicknessZone {
+  id: string;
+  label: string;
+  reductionPercent: number;
+  finalThickness: number;
+  radialStartRatio: number;
+  radialEndRatio: number;
+  color: string;
+}
+
+export interface BlankCalculationResult {
+  baseBlankDiameter: number;
+  requiredDiscDiameter: number;
+  minimumSquareSheetSide: number;
+  recommendedSquareSheetSide: number;
+  blankDiscAreaMm2: number;
+  recommendedSquareSheetAreaMm2: number;
+  wasteAreaMm2: number;
+  wastePercent: number;
+  blankWeight: number;
+  recommendedSquareSheetWeight: number;
+  thicknessZones: ThicknessZone[];
+  minThicknessZone: ThicknessZone;
+  estimatedMinimumThickness: number;
+  qcMinimumThickness: number;
+  suggestedStartingThicknessForFinalNominal: number;
+  warnings: string[];
+}
+
 export interface ValidationResult {
   config: CalculatorConfig | null;
   configErrors: Partial<Record<keyof CalculatorForm, string>>;
   nozzles: ParsedNozzle[];
   nozzleErrors: Record<string, string | undefined>;
+  blankOptions: BlankOptions | null;
+  blankErrors: Partial<Record<keyof BlankOptionsForm, string>>;
   isValid: boolean;
+  isBlankValid: boolean;
 }

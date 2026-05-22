@@ -1,4 +1,4 @@
-import type { CalculatorForm, NozzleForm } from './types';
+import type { BlankOptionsForm, CalculatorForm, NozzleForm } from './types';
 
 export const APP_VERSION = '1.0.0';
 
@@ -29,4 +29,10 @@ export const DEFAULT_FORM: CalculatorForm = {
 export const DEFAULT_NOZZLE: Omit<NozzleForm, 'id'> = {
   size: 'DN50',
   offset: '0',
+};
+
+export const DEFAULT_BLANK_OPTIONS_FORM: BlankOptionsForm = {
+  trimAllowanceRadial: '',
+  cuttingClearance: '10',
+  roundingStep: '5',
 };

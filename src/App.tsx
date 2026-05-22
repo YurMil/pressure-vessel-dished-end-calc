@@ -1,33 +1,45 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { APP_VERSION, DEFAULT_FORM, DEFAULT_NOZZLE, MATERIALS, NOZZLE_SIZES } from './constants';
+import { APP_VERSION, DEFAULT_BLANK_OPTIONS_FORM, DEFAULT_FORM, DEFAULT_NOZZLE, MATERIALS, NOZZLE_SIZES } from './constants';
+import { BlankModulePanel } from './components/BlankModulePanel';
+import { BlankReportView } from './components/BlankReportView';
 import { Field, NumberField } from './components/Field';
 import { Icon } from './components/Icon';
 import { PreviewPanel } from './components/PreviewPanel';
 import { ReportView } from './components/ReportView';
+import { calculateBlank, getDefaultTrimAllowance } from './lib/blankCalculations';
 import { calculateApproxVolume, calculateGeometry } from './lib/calculations';
 import { validateForm } from './lib/validation';
-import type { CalculatorForm, NozzleForm } from './types';
+import type { BlankOptionsForm, CalculatorForm, NozzleForm } from './types';
 
 const createNozzleId = () => globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 11);
 
 function App() {
   const [form, setForm] = useState<CalculatorForm>(DEFAULT_FORM);
+  const [blankForm, setBlankForm] = useState<BlankOptionsForm>(DEFAULT_BLANK_OPTIONS_FORM);
   const [nozzles, setNozzles] = useState<NozzleForm[]>([]);
-  const [showReport, setShowReport] = useState(false);
+  const [reportMode, setReportMode] = useState<'qc' | 'blank' | null>(null);
   const printTriggeredRef = useRef(false);
 
-  const validation = useMemo(() => validateForm(form, nozzles), [form, nozzles]);
+  const validation = useMemo(() => validateForm(form, nozzles, blankForm), [blankForm, form, nozzles]);
   const calculated = useMemo(
     () => (validation.config ? calculateGeometry(validation.config) : null),
     [validation.config],
+  );
+  const blankCalculated = useMemo(
+    () =>
+      validation.config && calculated && validation.blankOptions && validation.isBlankValid
+        ? calculateBlank(validation.config, calculated, validation.blankOptions)
+        : null,
+    [calculated, validation.blankOptions, validation.config, validation.isBlankValid],
   );
   const volumeM3 = useMemo(
     () => (validation.config && calculated ? calculateApproxVolume(validation.config, calculated.totalHeight) : 0),
     [calculated, validation.config],
   );
+  const autoTrimAllowance = validation.config ? getDefaultTrimAllowance(validation.config.diameterOuter) : null;
 
   useEffect(() => {
-    if (!showReport) {
+    if (!reportMode) {
       printTriggeredRef.current = false;
       return;
     }
@@ -44,15 +56,20 @@ function App() {
     }, 120);
 
     return () => window.clearTimeout(timer);
-  }, [showReport]);
+  }, [reportMode]);
 
   const configErrors = Object.values(validation.configErrors).filter(Boolean) as string[];
+  const blankErrors = Object.values(validation.blankErrors).filter(Boolean) as string[];
   const nozzleErrorEntries = nozzles
     .map((nozzle) => ({ id: nozzle.id, error: validation.nozzleErrors[nozzle.id] }))
     .filter((entry): entry is { id: string; error: string } => Boolean(entry.error));
 
   const updateForm = <K extends keyof CalculatorForm>(key: K, value: CalculatorForm[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateBlankForm = <K extends keyof BlankOptionsForm>(key: K, value: BlankOptionsForm[K]) => {
+    setBlankForm((current) => ({ ...current, [key]: value }));
   };
 
   const updateNozzle = (id: string, key: keyof NozzleForm, value: string) => {
@@ -69,12 +86,17 @@ function App() {
 
   const handleReportOpen = () => {
     if (!validation.isValid) return;
-    setShowReport(true);
+    setReportMode('qc');
+  };
+
+  const handleBlankReportOpen = () => {
+    if (!validation.isValid || !validation.isBlankValid || !blankCalculated) return;
+    setReportMode('blank');
   };
 
   return (
     <>
-      <div className={`app-shell ${showReport ? 'print-hidden' : ''}`}>
+      <div className={`app-shell ${reportMode ? 'print-hidden' : ''}`}>
         <header className="app-header">
           <div className="brand">
             <div className="brand__badge">
@@ -90,6 +112,15 @@ function App() {
 
           <div className="header-actions">
             <div className="version-chip">v{APP_VERSION}</div>
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={handleBlankReportOpen}
+              disabled={!validation.isValid || !validation.isBlankValid || !blankCalculated}
+            >
+              <Icon name="scissors" size={18} />
+              Blank Report (PDF)
+            </button>
             <button type="button" className="button button--primary" onClick={handleReportOpen} disabled={!validation.isValid}>
               <Icon name="download" size={18} />
               QC Report (PDF)
@@ -99,7 +130,7 @@ function App() {
 
         <main className="app-main">
           <aside className="sidebar">
-            {(configErrors.length > 0 || nozzleErrorEntries.length > 0) && (
+            {(configErrors.length > 0 || nozzleErrorEntries.length > 0 || blankErrors.length > 0) && (
               <section className="card validation-card">
                 <div className="section-title">
                   <Icon name="alert" size={18} />
@@ -111,6 +142,9 @@ function App() {
                   ))}
                   {nozzleErrorEntries.map((entry) => (
                     <li key={entry.id}>{entry.error}</li>
+                  ))}
+                  {blankErrors.map((error) => (
+                    <li key={error}>{error}</li>
                   ))}
                 </ul>
               </section>
@@ -222,6 +256,53 @@ function App() {
             </section>
 
             <section className="card">
+              <div className="section-title">
+                <Icon name="layers" size={18} />
+                <span>Blank & Forming Assumptions</span>
+              </div>
+
+              <Field
+                label="Radial Trim Allowance"
+                error={validation.blankErrors.trimAllowanceRadial}
+                hint={blankForm.trimAllowanceRadial.trim() === '' && autoTrimAllowance !== null ? `Auto ${autoTrimAllowance.toFixed(1)} mm` : undefined}
+              >
+                <div className="input-with-suffix">
+                  <input
+                    className="input"
+                    type="number"
+                    value={blankForm.trimAllowanceRadial}
+                    onChange={(event) => updateBlankForm('trimAllowanceRadial', event.target.value)}
+                    min={0}
+                    step={1}
+                    placeholder={autoTrimAllowance !== null ? autoTrimAllowance.toFixed(1) : 'Auto'}
+                  />
+                  <span className="input-suffix">mm</span>
+                </div>
+              </Field>
+
+              <div className="form-grid">
+                <NumberField
+                  label="Cutting Clearance"
+                  value={blankForm.cuttingClearance}
+                  onChange={(event) => updateBlankForm('cuttingClearance', event.target.value)}
+                  error={validation.blankErrors.cuttingClearance}
+                  min={0}
+                  step={1}
+                  suffix="mm"
+                />
+                <NumberField
+                  label="Rounding Step"
+                  value={blankForm.roundingStep}
+                  onChange={(event) => updateBlankForm('roundingStep', event.target.value)}
+                  error={validation.blankErrors.roundingStep}
+                  min={0.1}
+                  step={0.5}
+                  suffix="mm"
+                />
+              </div>
+            </section>
+
+            <section className="card">
               <div className="section-title section-title--between">
                 <span className="section-title__group">
                   <Icon name="cpu" size={18} />
@@ -301,7 +382,18 @@ function App() {
 
           <section className="content">
             {validation.config && calculated ? (
-              <PreviewPanel config={validation.config} calculated={calculated} nozzles={validation.nozzles} volumeM3={volumeM3} />
+              <div className="content-stack">
+                <PreviewPanel config={validation.config} calculated={calculated} nozzles={validation.nozzles} volumeM3={volumeM3} />
+                {blankCalculated ? (
+                  <BlankModulePanel config={validation.config} calculated={calculated} blank={blankCalculated} />
+                ) : (
+                  <section className="card empty-preview empty-preview--compact">
+                    <Icon name="alert" size={28} />
+                    <h2>Blank module paused</h2>
+                    <p>Fix the blank assumption values on the left to restore blank sizing and report generation.</p>
+                  </section>
+                )}
+              </div>
             ) : (
               <section className="card empty-preview">
                 <Icon name="alert" size={28} />
@@ -318,8 +410,20 @@ function App() {
           config={validation.config}
           calculated={calculated}
           nozzles={validation.nozzles}
-          isOpen={showReport}
-          onClose={() => setShowReport(false)}
+          isOpen={reportMode === 'qc'}
+          onClose={() => setReportMode(null)}
+        />
+      )}
+
+      {validation.config && calculated && validation.blankOptions && blankCalculated && (
+        <BlankReportView
+          config={validation.config}
+          calculated={calculated}
+          blankOptions={validation.blankOptions}
+          blank={blankCalculated}
+          nozzles={validation.nozzles}
+          isOpen={reportMode === 'blank'}
+          onClose={() => setReportMode(null)}
         />
       )}
     </>
