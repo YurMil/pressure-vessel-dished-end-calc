@@ -1,5 +1,6 @@
 import { DEFAULT_NOZZLE } from '../constants';
-import type { CalculatorConfig, CalculatorForm, NozzleForm, ParsedNozzle, ValidationResult } from '../types';
+import { getDefaultTrimAllowance } from './blankCalculations';
+import type { BlankOptions, BlankOptionsForm, CalculatorConfig, CalculatorForm, NozzleForm, ParsedNozzle, ValidationResult } from '../types';
 
 const parsePositiveNumber = (value: string) => {
   const parsed = Number(value);
@@ -25,7 +26,42 @@ const buildConfig = (form: CalculatorForm): ValidationResult['config'] => {
   };
 };
 
-export const validateForm = (form: CalculatorForm, nozzleForms: NozzleForm[]): ValidationResult => {
+const validateBlankOptions = (form: BlankOptionsForm | undefined, diameterOuter: number | null) => {
+  const blankErrors: ValidationResult['blankErrors'] = {};
+
+  if (!form || diameterOuter === null || diameterOuter <= 0) {
+    return { blankOptions: null, blankErrors, isBlankValid: false };
+  }
+
+  const parsedTrimAllowance = form.trimAllowanceRadial.trim() === '' ? getDefaultTrimAllowance(diameterOuter) : Number(form.trimAllowanceRadial);
+  const parsedCuttingClearance = Number(form.cuttingClearance);
+  const parsedRoundingStep = Number(form.roundingStep);
+
+  if (!Number.isFinite(parsedTrimAllowance) || parsedTrimAllowance < 0) {
+    blankErrors.trimAllowanceRadial = 'Trim allowance must be zero or greater.';
+  }
+
+  if (!Number.isFinite(parsedCuttingClearance) || parsedCuttingClearance < 0) {
+    blankErrors.cuttingClearance = 'Cutting clearance must be zero or greater.';
+  }
+
+  if (!Number.isFinite(parsedRoundingStep) || parsedRoundingStep <= 0) {
+    blankErrors.roundingStep = 'Rounding step must be greater than zero.';
+  }
+
+  const isBlankValid = Object.keys(blankErrors).length === 0;
+  const blankOptions: BlankOptions | null = isBlankValid
+    ? {
+        trimAllowanceRadial: parsedTrimAllowance,
+        cuttingClearance: parsedCuttingClearance,
+        roundingStep: parsedRoundingStep,
+      }
+    : null;
+
+  return { blankOptions, blankErrors, isBlankValid };
+};
+
+export const validateForm = (form: CalculatorForm, nozzleForms: NozzleForm[], blankForm?: BlankOptionsForm): ValidationResult => {
   const configErrors: ValidationResult['configErrors'] = {};
 
   const diameterOuter = parsePositiveNumber(form.diameterOuter);
@@ -85,12 +121,16 @@ export const validateForm = (form: CalculatorForm, nozzleForms: NozzleForm[]): V
   });
 
   const isValid = config !== null && Object.keys(nozzleErrors).length === 0;
+  const { blankOptions, blankErrors, isBlankValid } = validateBlankOptions(blankForm, diameterOuter);
 
   return {
     config,
     configErrors,
     nozzles,
     nozzleErrors,
+    blankOptions,
+    blankErrors,
     isValid,
+    isBlankValid: isValid && isBlankValid,
   };
 };
