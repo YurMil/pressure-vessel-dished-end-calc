@@ -1,5 +1,6 @@
 export type HeadStandard = 'DIN28011' | 'DIN28013' | 'SS895';
 export type EdgePrep = 'None' | 'V-Bevel';
+export type EdgePrepSide = 'single' | 'double';
 
 export interface CalculatorConfig {
   standard: HeadStandard;
@@ -8,6 +9,7 @@ export interface CalculatorConfig {
   straightFlange: number;
   material: string;
   edgePrep: EdgePrep;
+  edgePrepSide: EdgePrepSide;
   bevelAngle: number;
   rootFace: number;
 }
@@ -19,6 +21,7 @@ export interface CalculatorForm {
   straightFlange: string;
   material: string;
   edgePrep: EdgePrep;
+  edgePrepSide: EdgePrepSide;
   bevelAngle: string;
   rootFace: string;
 }
@@ -64,6 +67,10 @@ export interface ParsedNozzle {
   id: string;
   size: string;
   offset: number;
+}
+
+export interface CadNozzle extends ParsedNozzle {
+  type: string;
 }
 
 export interface ThicknessZone {

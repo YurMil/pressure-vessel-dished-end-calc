@@ -1,4 +1,4 @@
-import type { BlankOptionsForm, CalculatorForm, NozzleForm } from './types';
+import type { BlankOptionsForm, CalculatorForm, EdgePrepSide, NozzleForm } from './types';
 
 export const APP_VERSION = '1.0.0';
 
@@ -15,6 +15,11 @@ export const MATERIALS = [
 
 export const NOZZLE_SIZES = ['DN15', 'DN25', 'DN40', 'DN50', 'DN80', 'DN100', 'DN150', 'DN200', 'DN300', 'DN400', 'DN500'] as const;
 
+export const EDGE_PREP_SIDES: Array<{ value: EdgePrepSide; label: string }> = [
+  { value: 'single', label: 'Single side' },
+  { value: 'double', label: 'Double side' },
+];
+
 export const DEFAULT_FORM: CalculatorForm = {
   standard: 'DIN28011',
   diameterOuter: '1000',
@@ -22,6 +27,7 @@ export const DEFAULT_FORM: CalculatorForm = {
   straightFlange: '25',
   material: MATERIALS[0],
   edgePrep: 'None',
+  edgePrepSide: 'single',
   bevelAngle: '30',
   rootFace: '2',
 };
