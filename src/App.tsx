@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { APP_VERSION, DEFAULT_BLANK_OPTIONS_FORM, DEFAULT_FORM, DEFAULT_NOZZLE, MATERIALS, NOZZLE_SIZES } from './constants';
+import { APP_VERSION, DEFAULT_BLANK_OPTIONS_FORM, DEFAULT_FORM, DEFAULT_NOZZLE, EDGE_PREP_SIDES, MATERIALS, NOZZLE_SIZES } from './constants';
 import { BlankModulePanel } from './components/BlankModulePanel';
 import { BlankReportView } from './components/BlankReportView';
+import { EdgePrepDetail } from './components/EdgePrepDetail';
+import { EdgePrepPreview } from './components/EdgePrepPreview';
 import { Field, NumberField } from './components/Field';
 import { Icon } from './components/Icon';
 import { PreviewPanel } from './components/PreviewPanel';
 import { ReportView } from './components/ReportView';
+import { StepExportPanel } from './components/StepExportPanel';
 import { calculateBlank, getDefaultTrimAllowance } from './lib/blankCalculations';
 import { calculateApproxVolume, calculateGeometry } from './lib/calculations';
 import { validateForm } from './lib/validation';
@@ -18,6 +21,7 @@ function App() {
   const [blankForm, setBlankForm] = useState<BlankOptionsForm>(DEFAULT_BLANK_OPTIONS_FORM);
   const [nozzles, setNozzles] = useState<NozzleForm[]>([]);
   const [reportMode, setReportMode] = useState<'qc' | 'blank' | null>(null);
+  const [isEdgePrepDetailOpen, setIsEdgePrepDetailOpen] = useState(false);
   const printTriggeredRef = useRef(false);
 
   const validation = useMemo(() => validateForm(form, nozzles, blankForm), [blankForm, form, nozzles]);
@@ -232,27 +236,56 @@ function App() {
               </Field>
 
               {form.edgePrep !== 'None' ? (
-                <div className="form-grid">
-                  <NumberField
-                    label="Angle"
-                    value={form.bevelAngle}
-                    onChange={(event) => updateForm('bevelAngle', event.target.value)}
-                    error={validation.configErrors.bevelAngle}
-                    min={1}
-                    max={89}
-                    suffix="deg"
-                  />
-                  <NumberField
-                    label="Root Face"
-                    value={form.rootFace}
-                    onChange={(event) => updateForm('rootFace', event.target.value)}
-                    error={validation.configErrors.rootFace}
-                    min={0.1}
-                    step={0.1}
-                    suffix="mm"
+                <>
+                  <div className="form-grid">
+                    <NumberField
+                      label="Angle"
+                      value={form.bevelAngle}
+                      onChange={(event) => updateForm('bevelAngle', event.target.value)}
+                      error={validation.configErrors.bevelAngle}
+                      min={1}
+                      max={79}
+                      suffix="deg"
+                    />
+                    <NumberField
+                      label="Root Face"
+                      value={form.rootFace}
+                      onChange={(event) => updateForm('rootFace', event.target.value)}
+                      error={validation.configErrors.rootFace}
+                      min={0.1}
+                      step={0.1}
+                      suffix="mm"
+                    />
+                  </div>
+                  <Field label="Sides">
+                    <select className="input select" value={form.edgePrepSide} onChange={(event) => updateForm('edgePrepSide', event.target.value as CalculatorForm['edgePrepSide'])}>
+                      {EDGE_PREP_SIDES.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </>
+              ) : null}
+
+              {validation.config ? (
+                <div className="edge-prep-card-preview">
+                  <EdgePrepPreview
+                    edgePrep={validation.config.edgePrep}
+                    edgePrepSide={validation.config.edgePrepSide}
+                    thickness={validation.config.thickness}
+                    rootFace={validation.config.rootFace}
+                    bevelAngle={validation.config.bevelAngle}
+                    variant="report"
                   />
                 </div>
               ) : null}
+
+              <button type="button" className="button button--secondary edge-prep-detail-button" onClick={() => setIsEdgePrepDetailOpen(true)} disabled={!validation.config}>
+                <Icon name="scissors" size={16} />
+                View edge prep detail
+              </button>
             </section>
 
             <section className="card">
@@ -384,6 +417,7 @@ function App() {
             {validation.config && calculated ? (
               <div className="content-stack">
                 <PreviewPanel config={validation.config} calculated={calculated} nozzles={validation.nozzles} volumeM3={volumeM3} />
+                <StepExportPanel config={validation.config} nozzles={validation.nozzles} isEnabled={validation.isValid} />
                 {blankCalculated ? (
                   <BlankModulePanel config={validation.config} calculated={calculated} blank={blankCalculated} />
                 ) : (
@@ -426,6 +460,8 @@ function App() {
           onClose={() => setReportMode(null)}
         />
       )}
+
+      {validation.config && <EdgePrepDetail config={validation.config} isVisible={isEdgePrepDetailOpen} onClose={() => setIsEdgePrepDetailOpen(false)} />}
     </>
   );
 }

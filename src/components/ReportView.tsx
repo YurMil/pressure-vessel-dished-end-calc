@@ -68,7 +68,7 @@ export function ReportView({ config, calculated, nozzles, isOpen, onClose }: Rep
                 </tr>
                 <tr>
                   <td>Edge prep</td>
-                  <td>{config.edgePrep === 'None' ? 'Square Cut' : `${config.edgePrep} ${config.bevelAngle} deg`}</td>
+                  <td>{config.edgePrep === 'None' ? 'Square Cut' : `${config.edgePrep} / ${config.edgePrepSide} / ${config.bevelAngle} deg`}</td>
                 </tr>
               </tbody>
             </table>

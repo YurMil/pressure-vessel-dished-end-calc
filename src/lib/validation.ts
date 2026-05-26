@@ -1,4 +1,5 @@
 import { DEFAULT_NOZZLE } from '../constants';
+import { computeDoubleBevelHeight, computeSingleBevelHeight } from '../cad/geometry/compute-head-geometry';
 import { getDefaultTrimAllowance } from './blankCalculations';
 import type { BlankOptions, BlankOptionsForm, CalculatorConfig, CalculatorForm, NozzleForm, ParsedNozzle, ValidationResult } from '../types';
 
@@ -21,6 +22,7 @@ const buildConfig = (form: CalculatorForm): ValidationResult['config'] => {
     straightFlange,
     material: form.material,
     edgePrep: form.edgePrep,
+    edgePrepSide: form.edgePrepSide,
     bevelAngle,
     rootFace,
   };
@@ -83,8 +85,8 @@ export const validateForm = (form: CalculatorForm, nozzleForms: NozzleForm[], bl
 
   if (form.edgePrep !== 'None') {
     const bevelAngle = parsePositiveNumber(form.bevelAngle);
-    if (bevelAngle === null || bevelAngle <= 0 || bevelAngle >= 90) {
-      configErrors.bevelAngle = 'Bevel angle must be between 0 and 90 degrees.';
+    if (bevelAngle === null || bevelAngle <= 0 || bevelAngle >= 80) {
+      configErrors.bevelAngle = 'Bevel angle must be between 0 and 80 degrees.';
     }
 
     const rootFace = parsePositiveNumber(form.rootFace);
@@ -92,6 +94,31 @@ export const validateForm = (form: CalculatorForm, nozzleForms: NozzleForm[], bl
       configErrors.rootFace = 'Root face must be greater than 0 mm.';
     } else if (thickness !== null && rootFace >= thickness) {
       configErrors.rootFace = 'Root face must stay below the wall thickness.';
+    }
+
+    if (
+      diameterOuter !== null &&
+      thickness !== null &&
+      straightFlange !== null &&
+      straightFlange >= 10 &&
+      bevelAngle !== null &&
+      rootFace !== null &&
+      !configErrors.bevelAngle &&
+      !configErrors.rootFace
+    ) {
+      const draftConfig = buildConfig(form) as CalculatorConfig;
+      const bevelHeight =
+        draftConfig.edgePrepSide === 'double'
+          ? computeDoubleBevelHeight(draftConfig)
+          : computeSingleBevelHeight(draftConfig);
+
+      if (draftConfig.edgePrepSide === 'single' && bevelHeight >= straightFlange) {
+        configErrors.straightFlange = 'Straight flange is too short for this bevel depth.';
+      }
+
+      if (draftConfig.edgePrepSide === 'double' && bevelHeight <= 0) {
+        configErrors.bevelAngle = 'Adjust bevel angle or root face to create a valid double bevel.';
+      }
     }
   }
 

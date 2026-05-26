@@ -120,7 +120,7 @@ export function PreviewPanel({ config, calculated, nozzles, volumeM3 }: PreviewP
                   fontWeight="bold"
                   fill="#cbd5e1"
                 >
-                  {config.edgePrep}: {config.bevelAngle} deg
+                  {config.edgePrep} {config.edgePrepSide}: {config.bevelAngle} deg
                 </text>
               </g>
             ) : null}
