@@ -42,6 +42,10 @@ export const validateHeadCadConfig = (config: HeadCadConfig) => {
     } else {
       const bevelHeight = computeDoubleBevelHeight(config);
       assertCondition(bevelHeight > 0, 'Double-side bevel did not produce a valid land. Increase the bevel angle or reduce the root face.');
+      assertCondition(
+        bevelHeight < config.straightFlange,
+        'Double-side bevel exceeds the available straight flange height. Increase h1 or reduce bevel depth.',
+      );
     }
   }
 };
