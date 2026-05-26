@@ -38,15 +38,16 @@ export const applyEdgePrep = (config: HeadCadConfig, geometry: HeadDerivedGeomet
   }
 
   const bevelHeight = computeSingleBevelHeight(config);
-  const innerEnd = point(geometry.inner.shellRadius, bevelHeight);
-  const outerRootFaceEnd = point(geometry.outer.shellRadius - config.rootFace, 0);
+  const outerEnd = point(geometry.outer.shellRadius, bevelHeight);
+  const innerRootFaceEnd = point(geometry.inner.shellRadius + config.rootFace, 0);
+  const innerStart = point(geometry.inner.shellRadius, 0);
 
   return {
     mode: 'single-v',
     bevelHeight,
     rootFace: config.rootFace,
-    outerStart: baseOuterStart,
-    innerEnd,
-    closurePath: [innerEnd, outerRootFaceEnd, baseOuterStart],
+    outerStart: outerEnd,
+    innerEnd: innerStart,
+    closurePath: [innerStart, innerRootFaceEnd, outerEnd],
   };
 };

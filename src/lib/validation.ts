@@ -112,7 +112,7 @@ export const validateForm = (form: CalculatorForm, nozzleForms: NozzleForm[], bl
           ? computeDoubleBevelHeight(draftConfig)
           : computeSingleBevelHeight(draftConfig);
 
-      if (draftConfig.edgePrepSide === 'single' && bevelHeight >= straightFlange) {
+      if (bevelHeight >= straightFlange) {
         configErrors.straightFlange = 'Straight flange is too short for this bevel depth.';
       }
 
