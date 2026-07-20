@@ -30,8 +30,14 @@ const downloadStepFile = (stepBuffer: ArrayBuffer, config: HeadCadConfig) => {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = `vessel-head_${config.standard.toLowerCase()}_${Math.round(config.diameterOuter)}mm.step`;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  document.body.appendChild(anchor);
+
+  try {
+    anchor.click();
+  } finally {
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }
 };
 
 const toCadNozzles = (nozzles: ParsedNozzle[]): CadNozzle[] => nozzles.map((nozzle) => ({ ...nozzle, type: 'PN16' }));
