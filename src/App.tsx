@@ -12,6 +12,7 @@ import { StepExportPanel } from './components/StepExportPanel';
 import { calculateBlank, getDefaultTrimAllowance } from './lib/blankCalculations';
 import { calculateApproxVolume, calculateGeometry } from './lib/calculations';
 import { validateForm } from './lib/validation';
+import { initShareLink, reportShareState } from './shareLink';
 import type { BlankOptionsForm, CalculatorForm, NozzleForm } from './types';
 
 const createNozzleId = () => globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 11);
@@ -23,6 +24,23 @@ function App() {
   const [reportMode, setReportMode] = useState<'qc' | 'blank' | null>(null);
   const [isEdgePrepDetailOpen, setIsEdgePrepDetailOpen] = useState(false);
   const printTriggeredRef = useRef(false);
+
+  // Share-link protocol: restore forms from a shared URL (via the utility
+  // shell) and stream input changes back for the "Copy link" button.
+  useEffect(() => {
+    initShareLink({
+      defaults: { form: DEFAULT_FORM, blankForm: DEFAULT_BLANK_OPTIONS_FORM },
+      onRestore: (state) => {
+        setForm(state.form);
+        setBlankForm(state.blankForm);
+        setNozzles(state.nozzles.map((nozzle) => ({ ...nozzle, id: createNozzleId() })));
+      },
+    });
+  }, []);
+
+  useEffect(() => {
+    reportShareState({ form, blankForm, nozzles });
+  }, [form, blankForm, nozzles]);
 
   const validation = useMemo(() => validateForm(form, nozzles, blankForm), [blankForm, form, nozzles]);
   const calculated = useMemo(
