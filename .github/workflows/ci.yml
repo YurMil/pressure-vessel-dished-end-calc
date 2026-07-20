@@ -13,6 +13,9 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci
+      # npm install instead of npm ci: the lockfile is maintained on Windows
+      # and npm omits other platforms' optional native bindings (rolldown)
+      # from it — npm ci then fails on Linux (npm/cli#4828).
+      - run: npm install
       - run: npm test
       - run: npm run build

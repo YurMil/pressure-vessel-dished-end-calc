@@ -23,7 +23,10 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install Dependencies
-        run: npm ci
+        # npm install instead of npm ci: the lockfile is maintained on Windows
+        # and npm omits other platforms' optional native bindings (rolldown)
+        # from it — npm ci then fails on Linux (npm/cli#4828).
+        run: npm install
 
       - name: Run unit tests
         run: npm test
